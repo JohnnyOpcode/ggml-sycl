@@ -2262,6 +2262,8 @@ struct ggml_context * ggml_init(struct ggml_init_params params) {
         ggml_init_cublas();
 #elif defined(GGML_USE_CLBLAST)
         ggml_cl_init();
+#elif defined(GGML_USE_SYCL)
+        ggml_sycl_init();
 #endif
 
         ggml_setup_op_has_task_pass();
