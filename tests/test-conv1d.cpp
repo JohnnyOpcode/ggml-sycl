@@ -21,6 +21,13 @@
 #include <string>
 #include <vector>
 
+static void ggml_log_callback_default(ggml_log_level level, const char * text, void * user_data) {
+    (void) level;
+    (void) user_data;
+    fputs(text, stderr);
+    fflush(stderr);
+}
+
 struct test_model {
     struct ggml_tensor * a;
     struct ggml_tensor * b;
@@ -52,8 +59,8 @@ void load_model(test_model & model, bool use_gpu = false) {
 
     size_t buffer_size = 0;
     {
-        buffer_size += K * IC * OC * ggml_type_sizef(GGML_TYPE_F16); // tensor a
-        buffer_size += IL * IC * N * ggml_type_sizef(GGML_TYPE_F32); // tensor b
+        buffer_size += K * IC * OC * ggml_type_size(GGML_TYPE_F16); // tensor a
+        buffer_size += IL * IC * N * ggml_type_size(GGML_TYPE_F32); // tensor b
         buffer_size += 1024; // overhead
     }
 
@@ -189,7 +196,6 @@ struct ggml_cgraph* compute_graph(const test_model & model, struct ggml_allocr *
 
     //ggml_graph_print(gf);
 
-    // in this case, the output tensor is the last one in the graph
     return gf;
 }
 

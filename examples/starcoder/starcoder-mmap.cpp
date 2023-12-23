@@ -75,7 +75,7 @@ struct llama_buffer {
     void resize(size_t len) {
 #ifdef GGML_USE_METAL
         free(addr);
-        int result = posix_memalign((void **) &addr, getpagesize(), len);
+        int result = posix_memalign((void **) &addr, sysconf(_SC_PAGESIZE), len);
         if (result == 0) {
             memset(addr, 0, len);
         }
@@ -782,8 +782,7 @@ bool starcoder_eval(
             struct ggml_tensor * KQ_scaled =
                 ggml_scale_inplace(ctx0,
                         KQ,
-                        ggml_new_f32(ctx0, 1.0f/sqrt(float(n_embd)/n_head))
-                        );
+                        1.0f/sqrt(float(n_embd)/n_head));
 
             // KQ_masked = mask_past(KQ_scaled)
             // [n_past + N, N, 12]
