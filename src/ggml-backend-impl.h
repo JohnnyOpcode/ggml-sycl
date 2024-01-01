@@ -20,6 +20,9 @@ extern "C" {
         size_t                (*get_alignment)   (ggml_backend_buffer_type_t buft); // tensor alignment
         size_t                (*get_alloc_size)  (ggml_backend_buffer_type_t buft, struct ggml_tensor * tensor); // data size needed to allocate the tensor, including padding
         bool                  (*supports_backend)(ggml_backend_buffer_type_t buft, ggml_backend_t backend); // check if the buffer type is usable by the backend
+        // check if tensor data is in host memory
+        // should be equivalent to supports_backend(buft, ggml_backend_cpu_init())
+        bool                  (*is_host)         (ggml_backend_buffer_type_t buft);
     };
 
     struct ggml_backend_buffer_type {
@@ -31,15 +34,16 @@ extern "C" {
     typedef void * ggml_backend_buffer_context_t;
 
     struct ggml_backend_buffer_i {
-        void     (*free_buffer)(ggml_backend_buffer_t buffer);
+        void   (*free_buffer)    (ggml_backend_buffer_t buffer);
         //void     (*reset)      (ggml_backend_buffer_t buffer); // reset any internal state due to tensor initialization, such as tensor extras
-        void *   (*get_base)   (ggml_backend_buffer_t buffer);
-        void     (*init_tensor)(ggml_backend_buffer_t buffer, struct ggml_tensor * tensor);
-        void     (*set_tensor) (ggml_backend_buffer_t buffer,       struct ggml_tensor * tensor, const void * data, size_t offset, size_t size);
-        void     (*get_tensor) (ggml_backend_buffer_t buffer, const struct ggml_tensor * tensor,       void * data, size_t offset, size_t size);
+        void * (*get_base)       (ggml_backend_buffer_t buffer);
+        void   (*init_tensor)    (ggml_backend_buffer_t buffer, struct ggml_tensor * tensor);
+        void   (*set_tensor)     (ggml_backend_buffer_t buffer,       struct ggml_tensor * tensor, const void * data, size_t offset, size_t size);
+        void   (*get_tensor)     (ggml_backend_buffer_t buffer, const struct ggml_tensor * tensor,       void * data, size_t offset, size_t size);
         // (optional) copy tensor between different buffer-type, allow for single-copy tranfers
-        void (*cpy_tensor_from)(ggml_backend_buffer_t buffer, struct ggml_tensor * src, struct ggml_tensor * dst);
-        void (*cpy_tensor_to)  (ggml_backend_buffer_t buffer, struct ggml_tensor * src, struct ggml_tensor * dst);
+        void   (*cpy_tensor_from)(ggml_backend_buffer_t buffer, struct ggml_tensor * src, struct ggml_tensor * dst);
+        void   (*cpy_tensor_to)  (ggml_backend_buffer_t buffer, struct ggml_tensor * src, struct ggml_tensor * dst);
+        void   (*clear)          (ggml_backend_buffer_t buffer, uint8_t value);
     };
 
     struct ggml_backend_buffer {
@@ -78,7 +82,7 @@ extern "C" {
         void (*cpy_tensor_from_async)(ggml_backend_t backend, struct ggml_tensor * src, struct ggml_tensor * dst);
         void (*cpy_tensor_to_async)  (ggml_backend_t backend, struct ggml_tensor * src, struct ggml_tensor * dst);
 
-        void (*synchronize)     (ggml_backend_t backend);
+        void (*synchronize)(ggml_backend_t backend);
 
         // compute graph with a plan
         ggml_backend_graph_plan_t (*graph_plan_create) (ggml_backend_t backend, struct ggml_cgraph * cgraph);
@@ -105,36 +109,7 @@ extern "C" {
 
     typedef ggml_backend_t (*ggml_backend_init_fn)(const char * params, void * user_data);
 
-    size_t ggml_backend_register(const char * name, ggml_backend_init_fn init_fn, ggml_backend_buffer_type_t default_buffer_type, void * user_data);
-
-
-    // Register a int function to be called at program startup
-    #if defined(__GNUC__) || defined(__clang__)
-        #define GGML_CONSTRUCTOR(init_fn) \
-            static void __attribute__((constructor)) init_fn ## _ggml_constructor(void) { \
-                init_fn(); \
-            }
-    #elif defined(_MSC_VER)
-        #ifdef __cplusplus
-            #define GGML_CONSTRUCTOR(init_fn) \
-                static int init_fn ## _ggml_constructor_dummy = init_fn();
-        #else
-            #define GGML_CONSTRUCTOR(init_fn) \
-                __pragma(section(".CRT$XCV", read)) \
-                __declspec(allocate(".CRT$XCV")) int (*init_fn ## _ggml_constructor)(void) = init_fn; \
-                __pragma(comment(linker, "/include:" #init_fn "_ggml_constructor"))
-        #endif
-    #else
-        #error "GGML_CONSTRUCTOR not implemented for this compiler"
-    #endif
-
-
-    // Register a backend
-    #define GGML_BACKEND_REGISTER(name, init_fn, buft, user_data) \
-        static void init_fn ## _backend_register(void) { \
-            ggml_backend_register(name, init_fn, buft, user_data); \
-        } \
-        GGML_CONSTRUCTOR(init_fn ## _backend_register)
+    void ggml_backend_register(const char * name, ggml_backend_init_fn init_fn, ggml_backend_buffer_type_t default_buffer_type, void * user_data);
 
 #ifdef  __cplusplus
 }
