@@ -1,4 +1,5 @@
 #include "ggml-sycl.h"
+#include "ggml.h"
 
 #include <CL/sycl.hpp>
 #include <iostream>
@@ -15,8 +16,6 @@
 #include <chrono>
 #include <thread>
 #include <mutex>
-
-#include "ggml.h"
 
 void ggml_sycl_init(void) {
     // todo

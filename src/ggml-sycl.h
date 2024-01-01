@@ -8,7 +8,7 @@ extern "C" {
 
 // so much work todo ..
 
-#define GGML_SYCL_MAX_DEVICES       256
+#define GGML_SYCL_MAX_DEVICES       1024
 
 void   ggml_sycl_init(void);
 
