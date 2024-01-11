@@ -15,19 +15,18 @@
 #include <thread>
 #include <vector>
 
-
 static void init_tensor_uniform(ggml_tensor * tensor, float min = -1.0f, float max = 1.0f) {
     size_t size = ggml_nelements(tensor);
     std::vector<float> data(size);
 
 #if 0
-    std::default_random_engine generator(rd());
+    static std::default_random_engine generator(1234);
     std::uniform_real_distribution<float> distribution(min, max);
 
     for (size_t i = 0; i < size; i++) {
         data[i] = distribution(generator);
     }
-#endif
+#else
     auto init_thread = [&](size_t start, size_t end) {
         std::random_device rd;
         std::default_random_engine generator(rd());
@@ -49,6 +48,7 @@ static void init_tensor_uniform(ggml_tensor * tensor, float min = -1.0f, float m
     for (auto & t : threads) {
         t.join();
     }
+#endif
 
     if (tensor->type == GGML_TYPE_F32 || tensor->type == GGML_TYPE_I32) {
         ggml_backend_tensor_set(tensor, data.data(), 0, size * sizeof(float));
@@ -392,15 +392,21 @@ struct test_case {
         struct callback_userdata {
             bool   ok;
             double max_err;
+            ggml_backend_t backend1;
+            ggml_backend_t backend2;
         };
 
         callback_userdata ud {
             true,
             max_nmse_err(),
+            backend1,
+            backend2
         };
 
         auto callback = [](int index, ggml_tensor * t1, ggml_tensor * t2, void * user_data) -> bool {
             callback_userdata * ud = (callback_userdata *) user_data;
+            const char * bn1 = ggml_backend_name(ud->backend1);
+            const char * bn2 = ggml_backend_name(ud->backend2);
 
             if (t1->op == GGML_OP_NONE) {
                 // sentinels must be unchanged
@@ -422,7 +428,7 @@ struct test_case {
             for (size_t i = 0; i < f1.size(); i++) {
                 // check for nans
                 if (std::isnan(f1[i]) || std::isnan(f2[i])) {
-                    printf("[%s] NaN at index %zu (%f %f) ", ggml_op_desc(t1), i, f1[i], f2[i]);
+                    printf("[%s] NaN at index %zu (%s=%f %s=%f) ", ggml_op_desc(t1), i, bn1, f1[i], bn2, f2[i]);
                     ud->ok = false;
                     return true;
                 }
@@ -430,12 +436,12 @@ struct test_case {
                 if (isinf_or_max(f1[i]) || isinf_or_max(f2[i])) {
                     if (isinf_or_max(f1[i]) && isinf_or_max(f2[i])) {
                         if (std::signbit(f1[i]) != std::signbit(f2[i])) {
-                            printf("[%s] inf sign mismatch: %f %f ", ggml_op_desc(t1), f1[i], f2[i]);
+                            printf("[%s] inf sign mismatch: %s=%f %s=%f ", ggml_op_desc(t1), bn1, f1[i], bn2, f2[i]);
                             ud->ok = false;
                             return true;
                         }
                     } else {
-                        printf("[%s] inf mismatch: %f %f ", ggml_op_desc(t1), f1[i], f2[i]);
+                        printf("[%s] inf mismatch: %s=%f %s=%f ", ggml_op_desc(t1), bn1, f1[i], bn2, f2[i]);
                         ud->ok = false;
                         return true;
                     }
@@ -445,7 +451,7 @@ struct test_case {
             double err = nmse(f1.data(), f2.data(), f1.size());
             if (err > ud->max_err) {
                 printf("[%s] NMSE = %f ", ggml_op_desc(t1), err);
-                //for (int i = 0; i < f1.size(); i++) {
+                //for (int i = 0; i < (int) f1.size(); i++) {
                 //    printf("%5d %9.6f %9.6f, diff = %9.6f\n", i, f1[i], f2[i], f1[i] - f2[i]);
                 //}
                 //printf("\n");

@@ -5,7 +5,7 @@
 # Usage:
 #
 #   $ cd /path/to/ggml
-#   $ ./scripts/sync-llama-am.sh
+#   $ ./scripts/sync-llama-am.sh -skip hash0,hash1,hash2...
 #
 
 set -e
@@ -24,10 +24,15 @@ fi
 lc=$(cat $SRC_GGML/scripts/sync-llama.last)
 echo "Syncing llama.cpp changes since commit $lc"
 
+to_skip=""
+if [ "$1" == "-skip" ]; then
+    to_skip=$2
+fi
+
 cd $SRC_LLAMA
 
 git log --oneline $lc..HEAD
-git log --oneline $lc..HEAD | grep -v "(ggml/[0-9]*)" | grep -v "(whisper/[0-9]*)" | cut -d' ' -f1 > $SRC_GGML/llama-commits
+git log --oneline $lc..HEAD --reverse | grep -v "(ggml/[0-9]*)" | grep -v "(whisper/[0-9]*)" | cut -d' ' -f1 > $SRC_GGML/llama-commits
 
 if [ ! -s $SRC_GGML/llama-commits ]; then
     rm -v $SRC_GGML/llama-commits
@@ -40,6 +45,13 @@ if [ -f $SRC_GGML/llama-src.patch ]; then
 fi
 
 while read c; do
+    if [ -n "$to_skip" ]; then
+        if [[ $to_skip == *"$c"* ]]; then
+            echo "Skipping $c"
+            continue
+        fi
+    fi
+
     git format-patch -k $c~1..$c --stdout -- \
         ggml*.h \
         ggml*.c \
@@ -86,7 +98,6 @@ if [ -f $SRC_GGML/llama-src.patch ]; then
     # ggml-impl.h         -> src/ggml-impl.h
     # ggml-metal.h        -> src/ggml-metal.h
     # ggml-metal.m        -> src/ggml-metal.m
-    # ggml-metal.metal    -> src/ggml-metal.metal
     # ggml-mpi.h          -> src/ggml-mpi.h
     # ggml-mpi.c          -> src/ggml-mpi.c
     # ggml-opencl.cpp     -> src/ggml-opencl.cpp
@@ -113,7 +124,6 @@ if [ -f $SRC_GGML/llama-src.patch ]; then
         -e 's/\/ggml-impl\.h/\/src\/ggml-impl.h/g' \
         -e 's/\/ggml-metal\.h/\/src\/ggml-metal.h/g' \
         -e 's/\/ggml-metal\.m/\/src\/ggml-metal.m/g' \
-        -e 's/\/ggml-metal\.metal/\/src\/ggml-metal.metal/g' \
         -e 's/\/ggml-mpi\.h/\/src\/ggml-mpi.h/g' \
         -e 's/\/ggml-mpi\.c/\/src\/ggml-mpi.c/g' \
         -e 's/\/ggml-opencl\.cpp/\/src\/ggml-opencl.cpp/g' \
